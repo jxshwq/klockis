@@ -22,16 +22,6 @@ Sistema IoT basato su microcontrollore ESP32 per il monitoraggio in tempo reale 
 | Sensore Orientamento | RPI-1031 | GPIO | Rilevamento inclinazione 4-posizioni |
 | Display | OLED SSD1306 0.96" | I2C | Interfaccia utente |
 
-### Schema di Connessione
-
-```
-ESP32 DevKit v1
-├── DHT22 → Pin GPIO 4
-├── DS3231 → I2C (SDA: 21, SCL: 22)
-├── KY-039 → Pin ADC 32
-├── RPI-1031 → Pin GPIO 18, 19
-└── OLED SSD1306 → I2C (Address: 0x3C)
-```
 
 ## Funzionalità Implementate
 
@@ -70,34 +60,6 @@ Sistema di riconoscimento pattern per attivazione modalità sleep:
 
 ## Installazione e Configurazione
 
-### 1. Setup Hardware
-```bash
-# Connessioni I2C
-SDA (ESP32 Pin 21) → SDA (DS3231, OLED)
-SCL (ESP32 Pin 22) → SCL (DS3231, OLED)
-
-# Alimentazione sensori
-3.3V ESP32 → VCC sensori
-GND ESP32 → GND sensori
-```
-
-### 2. Configurazione Software
-```cpp
-// Calibrazione sensore cardiaco
-#define HEART_SENSOR_PIN 32
-#define RISE_THRESHOLD 3
-
-// Configurazione RTC (prima esecuzione)
-rtc.adjust(DateTime(2025, 1, 15, 12, 0, 0));
-```
-
-### 3. Upload e Test
-```bash
-1. Compilare e caricare il codice su ESP32
-2. Aprire Serial Monitor (115200 baud)
-3. Verificare inizializzazione sensori
-4. Testare rotazione dispositivo per cambio modalità
-```
 ## Schema Circuitale
 
 ![Schema Circuitale](./circuit.png)
