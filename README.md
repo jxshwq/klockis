@@ -58,8 +58,6 @@ Sistema di riconoscimento pattern per attivazione modalità sleep:
 #include <RTClib.h>            // Real Time Clock
 ```
 
-## Installazione e Configurazione
-
 ## Schema Circuitale
 
 ![Schema Circuitale](./circuit.png)
