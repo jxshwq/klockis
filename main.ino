@@ -39,6 +39,7 @@
 #include <DHT.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <RTClib.h>
+#include <TaskScheduler.h>
 
 // ========== CONFIGURAZIONE HARDWARE ==========
 #define DHT_PIN 4           // Pin digitale per DHT22
@@ -61,15 +62,11 @@ RTC_DS3231 rtc;
 // ========== VARIABILI DI SISTEMA ==========
 // Dati ambientali
 float temperatura, umidita;
-unsigned long lastSensorRead = 0;
-const long SENSOR_INTERVAL = 1000;
 
 // Gestione orientamento e display
 int currentOrientation = -1;
 int lastOrientation = -1;
 int displayRotation = 0;
-unsigned long lastDisplayUpdate = 0;
-const long DISPLAY_REFRESH = 100;
 
 // Buffer per ultimo BPM valido
 String lastValidBPM = "0"; 
@@ -77,6 +74,21 @@ String lastValidBPM = "0";
 // Mappatura orientamenti alle modalità di visualizzazione
 const char* displayModes[] = {"OROLOGIO", "QUALITA' ARIA", "BATTITI CARDIACI", "TEMP & UMIDITA'"};
 const int rotationMapping[] = {0, 3, 1, 2};  // Rotazioni display per orientamenti
+
+// ========== SCHEDULER E TASK ==========
+Scheduler taskRunner;
+
+// Dichiarazione task
+void orientationTask();
+void heartRateTask();
+void environmentalTask();
+void displayTask();
+
+// Definizione task con intervalli in millisecondi
+Task tOrientation(50, TASK_FOREVER, &orientationTask);      // 50ms - alta frequenza per reattività
+Task tHeartRate(20, TASK_FOREVER, &heartRateTask);         // 20ms - campionamento continuo BPM
+Task tEnvironmental(1000, TASK_FOREVER, &environmentalTask); // 1s - lettura sensori ambientali
+Task tDisplay(100, TASK_FOREVER, &displayTask);            // 100ms - aggiornamento display
 
 // ========== GESTIONE SLEEP MODE ==========
 bool sleepModeActive = false;
@@ -117,47 +129,66 @@ void setup() {
 
   initializeGestureBuffer();
   
+  // Inizializzazione scheduler e task
+  taskRunner.init();
+  taskRunner.addTask(tOrientation);
+  taskRunner.addTask(tHeartRate);
+  taskRunner.addTask(tEnvironmental);
+  taskRunner.addTask(tDisplay);
+  
+  // Abilitazione task
+  tOrientation.enable();
+  tHeartRate.enable();
+  tEnvironmental.enable();
+  tDisplay.enable();
+  
   // Schermata di avvio
   showBootScreen();
   delay(3000);
   
-  Serial.println(F("Sistema avviato - Rotare per cambiare modalità"));
+  Serial.println(F("Sistema avviato con TaskScheduler - Rotare per cambiare modalità"));
 }
 
 void loop() {
+  // Esecuzione dello scheduler - gestisce automaticamente tutti i task
+  taskRunner.execute();
+}
+
+// ========== TASK FUNCTIONS ==========
+void orientationTask() {
   unsigned long currentTime = millis();
-  
-  // Lettura continua sensore orientamento per gesture detection
   readOrientationSensor(currentTime);
+}
+
+void heartRateTask() {
+  // Skip se in modalità sleep per risparmiare energia
+  if (sleepModeActive) return;
   
-  // Modalità sleep: operazioni minime
-  if (sleepModeActive) {
-    if (currentTime - lastDisplayUpdate >= 1000) {
-      lastDisplayUpdate = currentTime;
-      displaySleepMode();
-    }
-    return;
-  }
-  
-  // Modalità normale: acquisizione dati completa
-  
-  // Campionamento continuo sensore cardiaco
   String currentBPM = acquireHeartRate();
   if (currentBPM != "0") {
     lastValidBPM = currentBPM;
     Serial.print(F("BPM rilevato: "));
     Serial.println(lastValidBPM);
   }
-  
-  // Lettura sensori ambientali
-  if (currentTime - lastSensorRead >= SENSOR_INTERVAL) {
-    lastSensorRead = currentTime;
-    readEnvironmentalSensors();
+}
+
+void environmentalTask() {
+  // Riduce frequenza in modalità sleep
+  if (sleepModeActive) {
+    tEnvironmental.setInterval(5000); // 5 secondi in sleep
+  } else {
+    tEnvironmental.setInterval(1000); // 1 secondo normale
   }
   
-  // Aggiornamento display
-  if (currentTime - lastDisplayUpdate >= DISPLAY_REFRESH) {
-    lastDisplayUpdate = currentTime;
+  readEnvironmentalSensors();
+}
+
+void displayTask() {
+  if (sleepModeActive) {
+    tDisplay.setInterval(1000); // 1 secondo in sleep mode
+    displaySleepMode();
+  } else {
+    tDisplay.setInterval(100);  // 100ms in modalità normale
     updateCurrentDisplay();
   }
 }
@@ -197,7 +228,6 @@ void processOrientationChange(int newOrientation, unsigned long timestamp) {
   // Aggiornamento immediato display se non in sleep
   if (!sleepModeActive) {
     updateCurrentDisplay();
-    lastDisplayUpdate = timestamp;
   }
 }
 
@@ -283,11 +313,13 @@ void toggleSleepMode() {
   if (sleepModeActive) {
     Serial.println(F("*** SLEEP MODE ATTIVATO ***"));
     sleepStartTime = millis();
+    // Disabilita task intensivi per risparmiare energia
+    tHeartRate.disable();
     displaySleepMode();
   } else {
     Serial.println(F("*** MODALITÀ NORMALE RIPRISTINATA ***"));
-    lastSensorRead = millis();
-    lastDisplayUpdate = millis();
+    // Riabilita tutti i task
+    tHeartRate.enable();
     updateCurrentDisplay();
   }
 }
@@ -438,17 +470,20 @@ void displayAirQuality() {
   display.setRotation(displayRotation);
   showOrientationIndicator();
   
+  // Titolo compatto
   display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println(F("QUALITA'"));
-  display.drawLine(0, 10, display.width(), 10, SSD1306_WHITE);
+  display.setCursor(2, 0);
+  display.println(F("QUALITA' ARIA"));
+  display.drawLine(0, 9, display.width() - 15, 9, SSD1306_WHITE);
   
-  // Simulazione dati qualità aria (sostituire con sensore reale)
-  display.setCursor(5, 20);
+  // Dati compatti su righe separate
+  display.setCursor(5, 18);
   display.println(F("PM2.5: 15 ug/m3"));
+  
   display.setCursor(5, 30);
   display.println(F("PM10:  23 ug/m3"));
-  display.setCursor(5, 40);
+  
+  display.setCursor(5, 42);
   display.println(F("CO2:   420 ppm"));
   
   display.display();
