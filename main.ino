@@ -4,7 +4,20 @@
  * Progetto: Dispositivo IoT per monitoraggio ambientale e biometrico
  * Piattaforma: ESP32 DevKit v1
  * 
- * Sensori integrati:
+     Serial.print(F("Rotazione rilevata: "));
+    Serial.print(displayModes[previousOrientation]);
+    Serial.print(F(" -> "));
+    Serial.print(displayModes[newOrientation]);
+    Serial.print(F(" ("));
+    Serial.print(rotationDirection == 1 ? "DESTRA" : "SINISTRA");
+    Serial.println(F(")"));
+    
+    // Debug aggiuntivo per la sequenza
+    Serial.print(F("Sequenza gesture corrente: "));
+    for (int i = 0; i < sequenceIndex; i++) {
+      Serial.print(gestureSequence[i] == 1 ? "DX " : "SX ");
+    }
+    Serial.println();ri integrati:
  * - DHT22: Temperatura e umidità ambientale
  * - DS3231: Real Time Clock per timestamp accurati
  * - KY-039: Sensore cardiaco a fotopletismografia
@@ -59,7 +72,7 @@ unsigned long lastDisplayUpdate = 0;
 const long DISPLAY_REFRESH = 100;
 
 // Buffer per ultimo BPM valido
-String lastValidBPM = "0";
+String lastValidBPM = "0"; 
 
 // Mappatura orientamenti alle modalità di visualizzazione
 const char* displayModes[] = {"OROLOGIO", "QUALITA' ARIA", "BATTITI CARDIACI", "TEMP & UMIDITA'"};
@@ -76,6 +89,7 @@ const long GESTURE_TIMEOUT = 3000;         // Timeout reset gesture (ms)
 unsigned long sleepStartTime = 0;
 
 void setup() {
+  Wire.begin(21, 23);
   Serial.begin(115200);
   
   // Configurazione pin sensore orientamento
@@ -190,18 +204,29 @@ void processOrientationChange(int newOrientation, unsigned long timestamp) {
 int analyzeRotationDirection(int from, int to) {
   if (from == -1) return -1;  // Prima lettura
   
-  // Matrice transizioni valide - rotazione oraria
-  if ((from == 0 && to == 1) || (from == 1 && to == 2) || 
-      (from == 2 && to == 3) || (from == 3 && to == 0)) {
+  // Ordine corretto in senso orario: 0→1→3→2→0
+  // OROLOGIO → QUALITA' ARIA → TEMP & UMIDITA' → BATTITI CARDIACI → OROLOGIO
+  
+  // Rotazione DESTRA (senso orario)
+  if ((from == 0 && to == 1) ||   // Orologio → Qualità Aria
+      (from == 1 && to == 3) ||   // Qualità Aria → Temp & Umidità  
+      (from == 3 && to == 2) ||   // Temp & Umidità → Battiti Cardiaci
+      (from == 2 && to == 0)) {   // Battiti Cardiaci → Orologio
     return 1;  // Destra
   }
   
-  // Matrice transizioni valide - rotazione antioraria
-  if ((from == 0 && to == 3) || (from == 3 && to == 2) || 
-      (from == 2 && to == 1) || (from == 1 && to == 0)) {
+  // Rotazione SINISTRA (senso antiorario)
+  if ((from == 0 && to == 2) ||   // Orologio → Battiti Cardiaci
+      (from == 2 && to == 3) ||   // Battiti Cardiaci → Temp & Umidità
+      (from == 3 && to == 1) ||   // Temp & Umidità → Qualità Aria
+      (from == 1 && to == 0)) {   // Qualità Aria → Orologio
     return 0;  // Sinistra
   }
   
+  Serial.print(F("Transizione non consecutiva: "));
+  Serial.print(from);
+  Serial.print(F(" -> "));
+  Serial.println(to);
   return -1;  // Transizione non valida
 }
 
@@ -415,7 +440,7 @@ void displayAirQuality() {
   
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println(F("QUALITA' ARIA"));
+  display.println(F("QUALITA'"));
   display.drawLine(0, 10, display.width(), 10, SSD1306_WHITE);
   
   // Simulazione dati qualità aria (sostituire con sensore reale)
@@ -425,8 +450,6 @@ void displayAirQuality() {
   display.println(F("PM10:  23 ug/m3"));
   display.setCursor(5, 40);
   display.println(F("CO2:   420 ppm"));
-  display.setCursor(5, 50);
-  display.println(F("Stato: BUONA"));
   
   display.display();
 }
@@ -439,7 +462,7 @@ void displayHeartRate() {
   // Intestazione compatta
   display.setTextSize(1);
   display.setCursor(2, 0);
-  display.println(F("BATTITO CARDIACO"));
+  display.println(F("BATTITO"));
   display.drawLine(0, 9, display.width() - 15, 9, SSD1306_WHITE);
   
   // Animazione cuore sincronizzata
