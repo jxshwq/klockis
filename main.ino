@@ -3,21 +3,6 @@
  * 
  * Progetto: Dispositivo IoT per monitoraggio ambientale e biometrico
  * Piattaforma: ESP32 DevKit v1
- * 
-     Serial.print(F("Rotazione rilevata: "));
-    Serial.print(displayModes[previousOrientation]);
-    Serial.print(F(" -> "));
-    Serial.print(displayModes[newOrientation]);
-    Serial.print(F(" ("));
-    Serial.print(rotationDirection == 1 ? "DESTRA" : "SINISTRA");
-    Serial.println(F(")"));
-    
-    // Debug aggiuntivo per la sequenza
-    Serial.print(F("Sequenza gesture corrente: "));
-    for (int i = 0; i < sequenceIndex; i++) {
-      Serial.print(gestureSequence[i] == 1 ? "DX " : "SX ");
-    }
-    Serial.println();ri integrati:
  * - DHT22: Temperatura e umidità ambientale
  * - DS3231: Real Time Clock per timestamp accurati
  * - KY-039: Sensore cardiaco a fotopletismografia
@@ -85,10 +70,10 @@ void environmentalTask();
 void displayTask();
 
 // Definizione task con intervalli in millisecondi
-Task tOrientation(50, TASK_FOREVER, &orientationTask);      // 50ms - alta frequenza per reattività
-Task tHeartRate(20, TASK_FOREVER, &heartRateTask);         // 20ms - campionamento continuo BPM
+Task tOrientation(50, TASK_FOREVER, &orientationTask);       // 50ms - alta frequenza per reattività
+Task tHeartRate(20, TASK_FOREVER, &heartRateTask);           // 20ms - campionamento continuo BPM
 Task tEnvironmental(1000, TASK_FOREVER, &environmentalTask); // 1s - lettura sensori ambientali
-Task tDisplay(100, TASK_FOREVER, &displayTask);            // 100ms - aggiornamento display
+Task tDisplay(100, TASK_FOREVER, &displayTask);              // 100ms - aggiornamento display
 
 // ========== GESTIONE SLEEP MODE ==========
 bool sleepModeActive = false;
@@ -473,21 +458,22 @@ void displayAirQuality() {
   // Titolo compatto
   display.setTextSize(1);
   display.setCursor(2, 0);
-  display.println(F("QUALITA' ARIA"));
-  display.drawLine(0, 9, display.width() - 15, 9, SSD1306_WHITE);
+  display.println(F("QUALITA'   ARIA"));
+  display.drawLine(0, 18, display.width() - 15, 18, SSD1306_WHITE);
   
   // Dati compatti su righe separate
-  display.setCursor(5, 18);
+  display.setCursor(5, 27);
   display.println(F("PM2.5: 15 ug/m3"));
   
-  display.setCursor(5, 30);
-  display.println(F("PM10:  23 ug/m3"));
+  display.setCursor(5, 51);
+  display.println(F("PM10: 23 ug/m3"));
   
-  display.setCursor(5, 42);
-  display.println(F("CO2:   420 ppm"));
+  display.setCursor(5, 74);
+  display.println(F("CO2: 420 ppm"));
   
   display.display();
 }
+
 
 void displayHeartRate() {
   display.clearDisplay();
